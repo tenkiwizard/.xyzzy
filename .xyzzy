@@ -1,0 +1,278 @@
+;;;
+;;; misc.
+;;;
+
+;; 文字コードをutf8nに
+(setq *default-fileio-encoding* *encoding-utf8n*)
+;; 改行コードをLFに
+(setq *default-eol-code* *eol-lf*)
+
+;; Emacs風キーバインドに近づける
+(load-library "emacskey")
+; undo/redoも
+(global-set-key #\C-- 'redo)
+(global-set-key #\C-_ 'undo)
+
+;; リージョンに色をつける
+(require "rv-region")
+(global-set-key #\C-@ 'rv-set-mark-command)
+
+;; "%t"が時刻、"%c"がxyzzyの内部コード、"%u"がUnicode、"%p"がカーソル位置を示す
+(setq *status-bar-format* "%p%c%u%t")
+
+;; 対応する括弧にジャンプ
+(defun match-paren (&optional arg)
+ "Go to the matching parenthesis if on parenthesis otherwise insert %."
+ (interactive "p")
+ (cond 
+   ((looking-at "[([{]") (forward-sexp 1) (backward-char))
+   ((looking-at "[])}]") (forward-char) (backward-sexp 1))
+   (t (self-insert-command (or arg 1)))))
+(global-set-key #\% 'match-paren)
+
+;; 一発インデント（C-F8）
+(defun indent-current-buffer ()
+  (interactive)
+  (indent-region (point-min) (point-max))
+  (message "indent buffer"))
+(global-set-key #\C-F8 'indent-current-buffer)
+
+;; ミニバッファの補完候補リストをチップヘルプにする
+(setq *print-completion-list-hook*
+'(lambda (list prefix &optional string)
+(popup-string (format nil "Possible completions are ~D
+  items:\n~{\n~A~}" (length list) list) (point))))
+
+;;
+(setq *eshell* "c:/usr/cygwin/bin/bash --login -i")
+
+;;;
+;;; NetInstaller
+;;;
+(require "ni/setup")
+;; 自動設定を利用する
+(ni-autoload)
+;; PROXYを通す場合
+;(setq ni::*http-proxy-host* "proxy.host")  ; PROXY のホスト
+;(setq ni::*http-proxy-port* 8080)          ; PROXY のポート
+(defun ni::add-site-from-wiki ()
+  (interactive)
+  (let ((s (ni::http-get-url "http://xyzzy.s53.xrea.com/wiki/index.php?cmd=source&page=NetInstaller%2F%C7%DB%C9%DB%A5%D1%A5%C3%A5%B1%A1%BC%A5%B8%B0%EC%CD%F7")))
+	(ni::load-site-data)
+	(mapcar
+	 (lambda (x) (ignore-errors (ni::site-add x)))
+	 (set-difference
+	  (remove-if
+	   'null 
+	   (mapcar (lambda (i)
+				 (and (string-match "^:[^|]+|\\(http:.*\\)$" i)
+					  (apply #'concat
+							 (mapcar (lambda (x)
+									   (let ((tmp (split-string x #\;)))
+										 (if (equal (car tmp) "amp")
+											 (apply #'concat "&" (cdr tmp))
+										   (car tmp))))
+									 (split-string (match-string 1) #\&)))))
+			   (let (out)
+				 (while
+					 (handler-case
+						 (progn
+						   (push (read-line s) out)
+						   t)
+					   (quit (c)
+						 (return-from ni::add-site-from-wiki))
+					   (error (c)
+						 nil)))
+				 (nreverse out))))
+	  (mapcar (lambda (x) (cdr (assoc "src" x :test 'equal))) ni::*site-data*)
+	  :test 'equal))) t)
+;;ここがキーバインド
+(define-key ni::*site-map* #\N 'ni::add-site-from-wiki)
+
+
+
+;;;
+;;; bash-mode
+;;;
+(load-library "bash-mode")
+(push '("\\.sh$" . bash-mode) *auto-mode-alist*)
+
+
+
+;;;
+;;; c-mode
+;;;
+(setq c-indent-level 4)
+(setq c-continued-statement-offset 0)
+(setq c-comment-indent 4)
+(setq *c-indent-tabs-mode* nil)
+(add-hook '*c-mode-hook*
+		  #'(lambda ()
+			  (set-tab-columns 4 (selected-buffer))
+			  ))
+
+
+
+;;;
+;;; php-mode
+;;;
+(load-library "php-mode")
+(pushnew '("\\.php$" . php-mode) *auto-mode-alist*)
+;; php-miscを使う場合
+(load-library "php-misc")
+;;(setq *php-html-help-path* "C:/xyzzy/etc/php_manual_ja.chm")
+
+
+
+;;;
+;;; javascript-mode
+;;;
+(load-library "javascript-mode")
+(push '("\\.js$" . javascript-mode) *auto-mode-alist*)
+(add-hook 'ed::*javascript-mode-hook* 
+		  #'(lambda () (setq indent-tabs-mode *c-indent-tabs-mode*)))
+
+
+
+;;;
+;;; html+-mode
+;;;
+(export 'ed::html+-mode "ed")
+(autoload 'html+-mode "html+-mode" t)
+(pushnew '("\\.s?html?$" . html+-mode) *auto-mode-alist* :test 'equal)
+(pushnew '("\\.ctp$" . html+-mode) *auto-mode-alist* :test 'equal)
+(setq ed::*html+-indent-column* 4)
+(add-hook 'ed::*html+-mode-hook* 
+		  #'(lambda () (setq indent-tabs-mode *c-indent-tabs-mode*)))
+;(undefine-key *javascript-mode-map* #\. )
+;(undefine-key *javascript-mode-map* #\TAB )
+;(define-key *javascript-mode-map* #\TAB 'javascript-indent-line)
+;(define-key *javascript-mode-map* #\M-\C-\/ 'javascript-completion)
+
+
+;;;
+;;; xml-mode
+;;;
+(require "xml/xml-mode")
+(use-package 'xml)
+
+
+
+;;;
+;;; internal css-mode enhance
+;;;
+; library
+(load-library "css-mode")
+; indent (お好みでどうぞ)
+(defvar *css-indent-level* 4)
+(defvar *css-continued-statement-offset* 4)
+(defvar *css-brace-offset* -4)
+(defvar *css-brace-imaginary-offset* 0)
+(defvar *css-argdecl-indent* 0)
+(defvar *css-label-offset* 0)
+; keymap (お好みでどうぞ)
+(define-key *css-mode-map* #\{ 'c-electric-insert)
+(define-key *css-mode-map* #\: 'c-electric-insert)
+(define-key *css-mode-map* #\} 'c-electric-close)
+(define-key *css-mode-map* #\C-h 'backward-delete-char-untabify-or-selection)
+(define-key *css-mode-map* #\TAB 'c-indent-line)
+(define-key *css-mode-map* #\C-M-q 'indent-sexp)
+(define-key *css-mode-map* #\RET 'c-newline-and-indent)
+(define-key *css-mode-map* #\C-. 'ed::css-completion)
+
+; function for hook
+(defun css-enhance ()
+  ;; indent command
+  (make-local-variable 'mode-specific-indent-command)
+  (make-local-variable 'c-comment-indent-variable)
+  (setq c-comment-indent-variable 'c-comment-indent)
+  (setq mode-specific-indent-command 'c-indent-line)
+  ; indent
+  (make-local-variable 'c-indent-level)
+  (make-local-variable 'c-continued-statement-offset)
+  (make-local-variable 'c-brace-offset)
+  (make-local-variable 'c-brace-imaginary-offset)
+  (make-local-variable 'c-argdecl-indent)
+  (make-local-variable 'c-label-offset)
+  (setq c-indent-level *css-indent-level*)
+  (setq c-continued-statement-offset *css-continued-statement-offset*)
+  (setq c-brace-offset *css-brace-offset*)
+  (setq c-brace-imaginary-offset *css-brace-imaginary-offset*)
+  (setq c-argdecl-indent *css-argdecl-indent*)
+  (setq c-label-offset *css-label-offset*)
+  ; comment
+  (setq comment-indent-function 'c-comment-indent)
+  (setq comment-start "/* " comment-end " */")
+  (setq comment-start-skip "/\\(\\*+\\|/\\)[ \t]*"))
+; hook
+(add-hook '*css-mode-hook* 'css-enhance)
+
+
+
+;;;
+;;; multi-major-mode
+;;;
+(load-library "multi-major-mode.l")
+
+;c-mode
+(defun multi-c-mode ()
+  (interactive)
+  (multi-mode t "c-mode"
+              '("/*" "*/" "text-mode")
+              '("//" "\n" "text-mode")
+              )
+  )
+(add-hook '*c-mode-hook* 'multi-c-mode)
+
+;html+-mode
+(defun multi-html-mode ()
+  (multi-mode t "html+-mode"
+              '("<!--" "-->" "text-mode")
+              '("<script" "</script>" "javascript-mode")
+              '("<?php" "?>" "php-mode")
+              '("<%" "%>" "java-mode")
+              )
+  )
+(add-hook 'ed::*html+-mode-hook* 'multi-html-mode)
+
+;java-mode
+(defun multi-java-mode ()
+  (multi-mode t "java-mode"
+              '("/*" "*/" "text-mode")
+              '("/**" "*/" "html+-mode")   ;暫定的に後勝ち (/,*,* と /,*,)
+              '("//" "\n" "text-mode" t)
+              ))
+
+(add-hook 'ed::*java-mode-hook* 'multi-java-mode)
+
+;perl-mode
+(defun multi-perl-mode ()
+  (multi-mode t "perl-mode"
+              '("#" "\n" "text-mode" t )
+              '("^=[a-zA-Z]" "^=cut$" "text-mode" t)
+              '("<<\\(.+\\);$" "^~1$" "text-mode" t)
+              '("__DATA__" "\0" "text-mode" t)
+              '("__END__" "\0" "text-mode" t)
+              ))
+
+(add-hook 'ed::*perl-mode-hook* 'multi-perl-mode)
+
+;lisp-mode
+(defun multi-lisp-mode ()
+  (multi-mode t nil
+              (list (concat "#" "|") (concat "|" "#") "text-mode")
+              '(";" "\n" "text-mode" t )
+              ))
+
+(add-hook 'ed::*lisp-mode-hook* 'multi-lisp-mode )
+(add-hook 'ed::*lisp-interaction-mode-hook* 'multi-lisp-mode)
+
+
+
+;;;
+;;; ruby-mode
+;;;
+(load-library "ruby-mode")
+(push '("\\.rb$" . ruby-mode) *auto-mode-alist*)
+; インデント量を変える。nilの時はタブを挿入
+(setq *ruby-indent-column* 4)
