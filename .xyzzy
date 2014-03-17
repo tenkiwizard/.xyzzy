@@ -105,12 +105,13 @@
 (setq c-indent-level 4)
 (setq c-continued-statement-offset 0)
 (setq c-comment-indent 4)
-(setq *c-indent-tabs-mode* nil)
+(setq *c-indent-tabs-mode* t) ;; Fits for FuelPHP's coding standard
+;;(setq *c-indent-tabs-mode* nil)
 (add-hook '*c-mode-hook*
 		  #'(lambda ()
 			  (set-tab-columns 4 (selected-buffer))
 			  ))
-
+(setf c-label-offset 0)
 
 
 ;;;
